@@ -22,7 +22,7 @@ To set up the application:
 
 ``` git clone https://github.com/JPDucky/PortalWarden``` 
 
-2. Open the .env.example file and specify the PORT and TARGET_URL environment variables.
+2. Open the .env.example file and specify your desired environment variables, then save it as `.env`.
 
 ```
 # Specify the port you want running on localhost, this is useful for accessing from behind firewall (REQUIRED)
