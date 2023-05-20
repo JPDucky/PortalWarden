@@ -2,14 +2,18 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const app = express();
 const PORT = process.env.PORT || 8091;
-const targetUrl = process.env.TARGET_URL || 'https://example.com';
-//const targetUrl = 'https://github.com/linux-surface/linux-surface/';
+const targetUrl = process.env.TARGET_URL;
 
-app.use('/proxy', createProxyMiddleware({
+app.use('/', createProxyMiddleware({
 	target: targetUrl,
 	changeOrigin: true,
 	pathRewrite: {
-		'^/proxy': '', // removes proxy from reqeust path
+		'^/': '', // removes proxy from request path
+	},
+	onError: function (err, req, res) {
+		console.error('An error has occurred:', err);
+		res.status(500).send('Oops, something went wrong.');
+		res.json({ error: 'An error has occurred while proxying request' });
 	},
 	onProxyRes: function (proxyRes, req, res) {
 		// remove x-frame-options header from response
@@ -28,9 +32,6 @@ app.use('/proxy', createProxyMiddleware({
 	}
 }));
 
-app.get('/', (req, res) => {
-  res.send('Hello, World!');
-});
 
 app.listen(PORT, () => {
   console.log(`Server listening on port ${PORT}`);

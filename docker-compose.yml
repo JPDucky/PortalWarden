@@ -1,0 +1,18 @@
+version: '3'
+services:
+  rpt:
+    build: .
+    ports:
+      - "8091:8091"
+    environment:
+      - PORT=8091
+      - TARGET_URL=https://www.rockler.com #https://example.com
+    command: npm start
+    labels:
+     - "traefik.enable=true"
+     - "traefik.docker.network=proxy"
+     - "traefik.http.routers.proxy1.entrypoints=websecure"
+     - "traefik.http.routers.proxy1.rule=Host(`proxy1.jpducky.io`)"
+     - "traefik.http.routers.proxy1.tls.certresolver=letsencrypt"
+    #- "traefik.http.routers.proxy1.middlewares=frameOptions"
+     - "traefik.http.services.proxy1.loadbalancer.server.port=8091"
