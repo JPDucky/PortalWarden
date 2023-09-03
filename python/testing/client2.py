@@ -2,7 +2,7 @@ import asyncio
 import socket
 import evdev
 
-SERVER_ADDRESS = "127.0.0.1"
+SERVER_ADDRESS = "10.10.10.123"
 UDP_PORT_NO = 20001
 clientSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
