@@ -18,8 +18,8 @@ async def process_events(event_queue):
         # do a thing w/ event
         print(f"Processed: {event}")
 
-if __name__ == "__main__":
-    asyncio.ensure_future(get_events(event_queue))
-    asyncio.ensure_future(process_events(event_queue))
-    loop = asyncio.get_event_loop()
-    loop.run_forever()
+# if __name__ == "__main__":
+#     asyncio.ensure_future(get_events(event_queue))
+#     asyncio.ensure_future(process_events(event_queue))
+#     loop = asyncio.get_event_loop()
+#     loop.run_forever()
