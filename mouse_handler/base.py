@@ -1,5 +1,6 @@
 # mouse_handler/base.py -> class contract
 
+
 # base class to define mouse event interface 
 class BaseMouseHandler: 
     def move(self, x, y):
