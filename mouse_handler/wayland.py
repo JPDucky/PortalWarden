@@ -1,7 +1,6 @@
 # mouse_handler/wayland.py
 
 from .base import BaseMouseHandler
-import evdev
 from evdev import InputDevice
 from selectors import DefaultSelector, EVENT_READ
 
@@ -17,22 +16,38 @@ class LinuxMouseHandler_wayland(BaseMouseHandler):
         self.x = 0
         self.y = 0
 
-    async def move(self):
-        async for event in self.mouse.async_read_loop():
+    def move(self):
+        while True:
             for key, mask in selector.select():
                 device = key.fileobj
                 for event in device.read():
-                    if event.code == 53: # x axis
-                        # print(f"x-axis-abs: {event.value}")
+                    if event.code == 53:
                         self.x = event.value
+                        return {self.x}
                     if event.code == 54:
-                        # print(f"y-axis-abs: {event.value}")
                         self.y = event.value
-                    yield {self.x, self.y}
+                        return {self.y}
+
 
 
 
 print("wayland.py loaded")
+#
+    # async def move(self):
+    #     async for event in self.mouse.async_read_loop():
+    #         for key, mask in selector.select():
+    #             device = key.fileobj
+    #             for event in device.read():
+    #                 if event.code == 53: # x axis
+    #                     # print(f"x-axis-abs: {event.value}")
+    #                     self.x = event.value
+    #                 if event.code == 54:
+    #                     # print(f"y-axis-abs: {event.value}")
+    #                     self.y = event.value
+    #                 yield {self.x, self.y}
+#
+#
+#
 #
     # async def move(self):
     #     async for event in self.mouse.async_read_loop():

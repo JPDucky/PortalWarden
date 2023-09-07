@@ -5,7 +5,7 @@ from mouse_handler.factory import get_mouse_handler
 mouse = get_mouse_handler()
 
 async def print_events(event_queue: asyncio.Queue):
-    async for move_value in mouse.move(x, y):
+    async for move_value in mouse.move():
         await event_queue.put(move_value)
 
 async def process_events(event_queue: asyncio.Queue):
