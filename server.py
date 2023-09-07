@@ -1,4 +1,4 @@
-# test-server.py
+# The Server will be the host SENDING events
 
 import socket
 import requests
@@ -7,7 +7,6 @@ HOST = "127.0.0.1"
 PORT_UDP = 20001
 
 def handle_client(UDPserverSock):
-    # target_url = f'http://{HOST}'
     while True:
         udp_data, udp_addr = UDPserverSock.recvfrom(1024)
         print("UDP data:", udp_data)
@@ -31,24 +30,4 @@ def start_server():
 
 if __name__ == "__main__":
     start_server()
-
-
-
-
-# TCPserverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# now bind declared address to freshly declared server sock
-# TCPserverSock.bind((HOST, PORT_TCP))
-# TCPserverSock.listen()
-# conn, addr = TCPserverSock.accept()
-# PORT_TCP = 20002
-
-# UDPserverSock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-# TCPserverSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-# now bind declared address to freshly declared server sock
-# UDPserverSock.bind((HOST, PORT_UDP))
-# TCPserverSock.bind((HOST, PORT_TCP))
-
-# TCPserverSock.listen()
-# conn, addr = TCPserverSock.accept()
 

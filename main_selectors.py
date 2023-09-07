@@ -4,18 +4,18 @@ from mouse_handler.factory import get_mouse_handler
 
 mouse = get_mouse_handler()
 
-def print_events():
+def get_events()():
     for move_value in mouse.move():
         return {move_value}
 
 def main():
-    return print_events()
+    return get_events()()
 
 if __name__ == "__main__":
     main()
 
 
-# async def print_events(event_queue: asyncio.Queue):
+# async def get_events()(event_queue: asyncio.Queue):
 #     async for move_value in mouse.move():
 #         await event_queue.put(move_value)
 #
@@ -27,10 +27,10 @@ if __name__ == "__main__":
 # async def main():
 #     event_queue = asyncio.Queue()
 #
-#     producer = asyncio.create_task(print_events(event_queue))
+#     producer = asyncio.create_task(get_events()(event_queue))
 #     consumer = asyncio.create_task(process_events(event_queue))
 #
-#     # asyncio.create_task(print_events())
+#     # asyncio.create_task(get_events()())
 #     await asyncio.gather(producer, consumer)
 #
 #
