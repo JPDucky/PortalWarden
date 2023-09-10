@@ -1,6 +1,5 @@
 # async-server.py
 import asyncio
-from os import wait
 from main import get_events, process_events, event_queue
 import signal
 import socket
@@ -20,33 +19,52 @@ class ErrorHandling():
         stop_event.set()
 
 
-class ServerHandling():
-    def __init__(self, port, host):
-        self.port = None
-        self.select_port()
-
-    def port_check(port, host='0.0.0.0'):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+class PortHandler():
+    @classmethod
+    def port_check(cls, port, host='0.0.0.0'):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.bind((host, port))
             sock.close()
+            print(f"Port {port} is available")
             return True
         except OSError:
+            print(f"Port {port} is not available")
             return False
 
-    async def select_port():
+    @classmethod
+    async def select_port(cls):
         port = 20001
-        while not ServerHandling.port_check(port):
+        while not cls.port_check(port):
             port += 1
         return port
 
 
+class DiscoveryHandler():
+    def __init__(self, transport, IPaddr, port=PORT):
+        self.transport = transport
+        self._IPAddr = IPaddr
+        self.port = port
+
+    async def broadcast(self):
+        if self._IPAddr is None:
+            print("IP address not set, cannot broadcast")
+            return
+        
+        broadcast_address = (self._IPAddr, self.port)
+        while True:
+            self.transport.sendto(b"discovery", broadcast_address)
+            await asyncio.sleep(15)
+
+
 class UDPServerProtocol(asyncio.DatagramProtocol):
-    def __init__(self, queue):
+    def __init__(self, queue, port, on_connection_made=None):
         self.queue = queue
         self.client_addr = None
+        self.port = port
         self._IPaddr = None
         self.get_hostname()
+        self.on_connection_made = on_connection_made
         super().__init__()
 
     async def start_sending(self):
@@ -69,10 +87,14 @@ class UDPServerProtocol(asyncio.DatagramProtocol):
 
     def connection_made(self, transport):
         self.transport = transport
+        self.discovery_handler = DiscoveryHandler(self.transport, self._IPaddr, port=self.port)
         self.sending_task = asyncio.create_task(self.start_sending())
         sock = transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         print("Connection made.")
+
+        if self.on_connection_made:
+            self.on_connection_made(self)
 
     def datagram_received(self, data, addr):
         print(f"Received {data.decode()} from {addr}")
@@ -82,15 +104,15 @@ class UDPServerProtocol(asyncio.DatagramProtocol):
         self.sending_task.cancel()
         print("Socket closed, stop the event loop")
 
-    async def broadcast(self):
-        if self._IPaddr is None:
-            print("IP address not set, cannot broadcast address")
-            return
-
-        broadcast_address = (self._IPaddr, PORT)
-        while True:
-            self.transport.sendto(b"discovery", broadcast_address)
-            await asyncio.sleep(5)
+    # async def broadcast(self):
+    #     if self._IPaddr is None:
+    #         print("IP address not set, cannot broadcast address")
+    #         return
+    #
+    #     broadcast_address = (self._IPaddr, PORT)
+    #     while True:
+    #         self.transport.sendto(b"discovery", broadcast_address)
+    #         await asyncio.sleep(5)
 
     def get_hostname(self):
         self._hostname = socket.gethostname()
@@ -98,24 +120,23 @@ class UDPServerProtocol(asyncio.DatagramProtocol):
         print("hostname: " + self._hostname, "IP: " + self._IPaddr)
 
 
+def on_connection_made(protocol):
+    asyncio.create_task(protocol.discovery_handler.broadcast())
+
+
 async def main():
-    port = await ServerHandling.select_port()
-
+    port = await PortHandler.select_port()
     loop = asyncio.get_running_loop()
-
-    protocol_instance = UDPServerProtocol(event_queue)
-    protocol_instance.get_hostname()
 
     loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(ErrorHandling.handle_exit(signal.SIGTERM)))
     loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(ErrorHandling.handle_exit(signal.SIGINT)))
-    
+
     transport, protocol = await loop.create_datagram_endpoint(
-        lambda: UDPServerProtocol(event_queue),
-        local_addr=(protocol_instance._IPaddr, port)
+        lambda: UDPServerProtocol(event_queue, port, on_connection_made),
+        local_addr=("0.0.0.0", port)
     )
     asyncio.create_task(get_events(event_queue))
     asyncio.create_task(process_events(event_queue))
-    asyncio.create_task(protocol.broadcast())
 
     sentinel = asyncio.create_task(stop_event.wait())
 
