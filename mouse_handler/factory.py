@@ -2,7 +2,7 @@
 
 import platform
 import sys
-from .wayland import LinuxMouseHandler_wayland
+from .multi_device import LinuxMouseHandler_wayland
 from .x11 import LinuxMouseHandler_X11
 from .windows import WindowsMouseHandler
 from .compositor_detector import detect_compositor
