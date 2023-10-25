@@ -1,6 +1,6 @@
 # mouse_handler/multi-device_test.py
 import asyncio
-from base import BaseMouseHandler
+from .base import BaseMouseHandler
 from evdev import InputDevice, ecodes, list_devices
 import evdev
 
@@ -31,21 +31,33 @@ mouse = device_discovery().discover_mouse_device()
 
 class LinuxMouseHandler_wayland(BaseMouseHandler):
     def __init__(self, mouse_device):
-        self.mouse = mouse
+        self.mouse_devices = mouse_device
         self.x = 0
         self.y = 0
+        self.event_queue = asyncio.Queue()
 
     async def move(self):
-        # print(f"Entering move loop for device: {self.mouse.path}")
-        async for event in self.mouse.async_read_loop():
+        gather_tasks = [asyncio.create_task(self.read_device(device)) for device in self.mouse_devices]
+
+        try:
+            while True:
+                event = await self.event_queue.get()
+                yield event
+        finally:
+            # if exit, cleanup tasks
+            for task in gather_tasks:
+                task.cancel()
+
+    async def read_device(self, device):
+        async for event in device.async_read_loop():
             print(f"Raw event data: {event}")
             # if event.code in [evdev.ecodes.REL_X, evdev.ecodes.REL_Y]:
             if event.code == evdev.ecodes.REL_X:
                 self.x = event.value
             if event.code == evdev.ecodes.REL_Y:
                 self.y = event.value
-            if self.x !=0: #this is here to remove the uneccesary noise/hardware softening that is created from the raw input (its a filter) 
-                yield {'x': self.x, 'y': self.y}
+            if self.x !=0: #this is here to remove the uneccesary noise/hardware softening that is created from the raw input (its a filter)
+                await self.event_queue.put({'x': self.x, 'y': self.y})
 
 
 async def consume_move_events(mouse_handler):
@@ -58,8 +70,11 @@ async def consume_move_events(mouse_handler):
 async def main():
     print("Started main")
     mouse_devices = device_discovery().discover_mouse_device()
+    print(f"Type of mouse_devices: {type(mouse_devices)}")
+    print(f"mouse_devices: {mouse_devices}")
     lent = len(mouse_devices)
     print(f"Number of mouse devices found: {lent}") 
+
     if not mouse_devices:
         print("No mouse devices found")
         return
@@ -67,7 +82,12 @@ async def main():
     print("Initializing handlers")
     handlers = [LinuxMouseHandler_wayland(device) for device in mouse_devices]
 
+    print(f"type of handlers: {type(handlers)}")
+    print(f"handlers: {handlers}")
+
     for handler in handlers:
+        print(f"Type of handler.mouse: {type(handler.mouse)}")
+        print(f"handler.mouse: {handler.mouse}")
         asyncio.create_task(consume_move_events(handler))
 
     stop_event = asyncio.Event()

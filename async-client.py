@@ -7,6 +7,7 @@ import socket
 RHOST = '127.0.0.1'
 RPORT = 20001
 
+actual_port = None
 
 stop_event = asyncio.Event()
 
@@ -26,19 +27,41 @@ class UDPClientProtocol(asyncio.DatagramProtocol):
         else:
             print(f"Received: {data.decode()} from {addr}")
 
-    def connection_lost(self, exc):
+    def connection_lost(self, _):
         print("Server closed, stop event loop")
         loop = asyncio.get_event_loop()
         loop.stop()
 
 
+class GetPortProtocol(asyncio.DatagramProtocol):
+    def __init__(self, loop):
+        self.loop = loop
+
+    def connection_made(self, transport):
+        self.transport = transport
+        self.request_port()
+
+    def request_port(self):
+        print("Requesting port from server...")
+        self.transport.sendto(b'get_port')
+
+    def datagram_received(self, data: bytes, addr: tuple) -> None:
+        global actual_port
+        actual_port = int(data.decode())
+        print(f"Received actual port: {actual_port}")
+        self.loop.create_task(self.switch_to_actual_port(actual_port))
+
+    async def switch_to_actual_port(self, port):
+        self.loop.create
+
+
 def test_port_number(host, port):
-    with socket(socket.AF_INET, socket.SOCK_STREAM)as sock:
+    with socket(socket.AF_INET, socket.SOCK_DGRAM)as sock:
         sock.timeout(3)
         try:
             sock.connect((host, port))
             return True
-        except:
+        except (socket.timeout, socket.error, OSError):
             return False
 
 
@@ -52,7 +75,7 @@ async def main():
 
     loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(handle_exit(signal.SIGTERM)))
     loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(handle_exit(signal.SIGINT)))
-    
+
     transport, protocol = await loop.create_datagram_endpoint(
         UDPClientProtocol,
         remote_addr=(RHOST, RPORT)

@@ -1,40 +1,48 @@
 # async-server.py
 import asyncio
-from main import get_events, process_events, event_queue
+import logging
 import signal
 import socket
+import argparse
 
+from main import event_queue, get_events, process_events
+
+logging.basicConfig(level=logging.DEBUG)
+MTU_SIZE = 1400
+PORT = 20001
 stop_event = asyncio.Event()
 
-PORT = 20001
+parser = argparse.ArgumentParser(description="Async Server")
+parser.add_argument("--log-msg", action="store_true", help="Log each message received")
+args = parser.parse_args()
+
+def log_message(self, msg):
+    if args.log_msg:
+        logging.debug(f"Message: {msg}")
 
 
 class ErrorHandling():
-    def __init__(self, err, signal):
-        self.err = err
-        self.signal = signal
-
-    async def handle_exit(sig):
-        print(f"Received exit signal {sig.name}...\nExiting...")
+    @staticmethod
+    async def handle_exit(sig: signal.Signals):
+        logging.info(f"Received exit signal {sig.name}... Exiting...")
         stop_event.set()
 
 
 class PortHandler():
     @classmethod
-    def port_check(cls, port, host='0.0.0.0'):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            sock.bind((host, port))
-            sock.close()
-            print(f"Port {port} is available")
-            return True
-        except OSError:
-            print(f"Port {port} is not available")
-            return False
+    def port_check(cls, port: int, host: str = '0.0.0.0') -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+            try:
+                sock.bind((host, port))
+                logging.info(f"Port {port} is available")
+                return True
+            except OSError:
+                logging.info(f"Port {port} is not available")
+                return False
 
     @classmethod
-    async def select_port(cls):
-        port = 20001
+    async def select_port(cls) -> int:
+        port = PORT
         while not cls.port_check(port):
             port += 1
         return port
@@ -45,16 +53,17 @@ class DiscoveryHandler():
         self.transport = transport
         self._IPAddr = IPaddr
         self.port = port
+        self.should_broadcast = True
 
     async def broadcast(self):
         if self._IPAddr is None:
             print("IP address not set, cannot broadcast")
             return
-        
+
         broadcast_address = (self._IPAddr, self.port)
-        while True:
+        while self.should_broadcast:
             self.transport.sendto(b"discovery", broadcast_address)
-            await asyncio.sleep(15)
+            await asyncio.sleep(5)
 
 
 class UDPServerProtocol(asyncio.DatagramProtocol):
@@ -68,26 +77,30 @@ class UDPServerProtocol(asyncio.DatagramProtocol):
         super().__init__()
 
     async def start_sending(self):
-        print("Entered start_sending method.")
+        logging.info("Entered start_sending method.")
         while True:
-            print(f"Waiting to get event from queue")
-            event = await self.queue.get()
-            msg = f"Processed: {event}"
+            try:
+                event = await self.queue.get()
+                logging.debug(f"Received event from queue: {event}")
 
-            print(f"Attempting to send: {msg}")
-            print(f"message length: {len(msg.encode())}")
+                msg = f"x:{event['x']},y:{event['y']}"
+                self.log_message(msg)
 
-            if len(msg.encode()) > 1400:  # set max MTU size
-                print("Message too large to send")
-                continue
+                if len(msg.encode()) > MTU_SIZE:  # set max MTU size
+                    logging.warning("Message too large to send")
+                    continue
 
-            if self.client_addr:
-                print(f"Sending to {self.client_addr}")
-                self.transport.sendto(msg.encode(), self.client_addr)
+                if self.client_addr:
+                    logging.info(f"Sending to {self.client_addr}")
+                    self.transport.sendto(msg.encode(), self.client_addr)
+            except Exception as e:
+                logging.error(f"An error occurred while sending: {e}")
+
 
     def connection_made(self, transport):
         self.transport = transport
-        self.discovery_handler = DiscoveryHandler(self.transport, self._IPaddr, port=self.port)
+        self.discovery_handler = DiscoveryHandler(
+            self.transport, self._IPaddr, port=self.port)
         self.sending_task = asyncio.create_task(self.start_sending())
         sock = transport.get_extra_info("socket")
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -99,20 +112,12 @@ class UDPServerProtocol(asyncio.DatagramProtocol):
     def datagram_received(self, data, addr):
         print(f"Received {data.decode()} from {addr}")
         self.client_addr = addr
+        self.discovery_handler.should_broadcast = False
 
     def connection_lost(self, exc):
         self.sending_task.cancel()
         print("Socket closed, stop the event loop")
-
-    # async def broadcast(self):
-    #     if self._IPaddr is None:
-    #         print("IP address not set, cannot broadcast address")
-    #         return
-    #
-    #     broadcast_address = (self._IPaddr, PORT)
-    #     while True:
-    #         self.transport.sendto(b"discovery", broadcast_address)
-    #         await asyncio.sleep(5)
+        self.discovery_handler.should_broadcast = True
 
     def get_hostname(self):
         self._hostname = socket.gethostname()
@@ -124,12 +129,15 @@ def on_connection_made(protocol):
     asyncio.create_task(protocol.discovery_handler.broadcast())
 
 
+def add_signal_handlers():
+    loop = asyncio.get_running_loop()
+    for sig in [signal.SIGTERM, signal.SIGINT]:
+        loop.add_signal_handler(sig, lambda s=sig: asyncio.create_task(ErrorHandling.handle_exit(s)))
+
+
 async def main():
     port = await PortHandler.select_port()
     loop = asyncio.get_running_loop()
-
-    loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(ErrorHandling.handle_exit(signal.SIGTERM)))
-    loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(ErrorHandling.handle_exit(signal.SIGINT)))
 
     transport, protocol = await loop.create_datagram_endpoint(
         lambda: UDPServerProtocol(event_queue, port, on_connection_made),
