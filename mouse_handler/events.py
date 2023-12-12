@@ -7,5 +7,5 @@ def print_mouse_events(mouse_device):
             print(f"Found event: {event}")
 
 
-mouse = evdev.InputDevice('/dev/input/event2')
+mouse = evdev.InputDevice('/dev/input/event5')
 print_mouse_events(mouse)

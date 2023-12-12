@@ -1,0 +1,4 @@
+* Tasks
+  - ( ) move everything related to server into one file
+  - ( ) move everything related to client into one filer
+  - ( ) remove awful object-oriented syntax when moving into single files
